@@ -1,0 +1,90 @@
+= sgn - pseudonymous digital signatures
+
+sgn allows you to mark files such that others can verify the same
+person wrote them.
+
+*** THIS IS ALPHA SOFTWARE, NOT YET PROPERLY PEER-REVIEWED.  USE AT OWN RISK. ***
+
+== Requirements
+
+* Ruby 1.8.
+* OpenSSL 0.9.8 or newer, openssl(1).
+* Support for /dev/fd/.
+
+== Usage
+
+Generate a key with `sgn-genkey`:
+
+    % sgn-genkey
+    Generating key...
+    read EC key
+    writing EC key
+    Wrote public key /Users/azurediamond/.sgn.pub.
+    Do you want to encrypt the private key [recommended] (y/n)? y
+    read EC key
+    writing EC key
+    Enter PEM pass phrase: hunter2
+    Verifying - Enter PEM pass phrase: hunter2
+    Wrote private key /Users/azurediamond/.sgn.pem.
+    Created key with fingerprint 358b3f83e291a784ac4fa141225815da728c0e80.
+
+Sign a file with `sgn`:
+
+    % sgn FILE >FILE.signed
+    Enter pass phrase for /Users/azurediamond/.sgn.pem: hunter2
+    % tail -2 FILE.signed
+    SK: MC4wEAYHKoZIzj0CAQYFK4EEAB8DGgADx8YQzTwcnJeizBVIiAr70e+/eamw7exP
+    SH: MDQCGG8SE8+uf0y8c4uOMi0dJBIf41taxJYg8QIYLAnAy9FyP382fcTFI3ztsGmWCMvaJHf9
+
+Copy it, modify it:
+    % cp FILE.signed FILE.changed
+    % ed FILE.changed
+    ,s/private/public/g
+    w
+    q
+
+Verify the files with `sgn-check`:
+
+    % sgn-check FILE*
+    file not signed: FILE
+    358b3f83e291a784ac4fa141225815da728c0e80 FILE.changed FAILED
+    358b3f83e291a784ac4fa141225815da728c0e80 FILE.signed OK
+
+As you can see, the signed files contain your fingerprints, and the
+modification has been discovered.  Note that "OK" only means the
+content check passed; only the fingerprint identifies the signer!
+Thus
+
+    f28c6a572a78961cdd91244a41e4e423a4c2334f FILE.changed OK
+
+would mean the file was not signed by the signer of FILE.signed (or
+with a different key).
+
+== How it works
+
+sgn uses modern elliptic public cryptography to sign files using ECDSA
+and includes the public key in all signed files to allow
+offline-checking.  Currently, a 192-bit SECG key is used for signing
+(which is stronger than an equivalent 1024-bit RSA key), and SHA1 for
+hashing (I'd like to use a better hash, but that's all OpenSSL has for
+ECDSA.)  Due to the compact size of key and hash, both easily fit into
+an 80 character line and don't clutter the things you want to sign.
+
+NOTA BENE: You must not lose or leak your private key.  There is no
+revocation mechanism.  Encrypt it if you intent to sign critical
+information!
+
+== Miscellaneous
+
+It is your own problem to authorize your fingerprints.  There is no PKI.
+
+You can place SH:/SK: markers at places you prefer (e.g. inside
+comments) to store the signature there.  Avoid SH:/SK: strings elsewhere.
+
+Make a key for each identity you have.
+
+sgn.el provides a few Emacs macros to sign and check buffers.
+
+== Copyright
+
+Written by 1b5c1836ae72386d5812a0eb63135abeacb38c76, see LICENSE.

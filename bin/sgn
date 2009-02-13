@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+require 'digest/sha1'
+
+src = if ARGV.empty? || ARGV[0] == "-" then
+        STDIN.read
+      else
+        File.read(ARGV[0])
+      end
+
+key = ARGV[1] || File.expand_path("~/.sgn.pem")
+pubkeyfile = key.dup.gsub!(/pem$/, "pub") || (key + ".pub")
+
+pubkey = File.read(pubkeyfile)[/\A-----BEGIN PUBLIC KEY-----(.*)-----END PUBLIC KEY-----\Z/m, 1].delete("\n")
+
+src << "SK\:\n"  unless src =~ /SK\:/
+src << "SH\:\n"  unless src =~ /SH\:/
+
+hash =
+IO.popen("openssl dgst -ecdsa-with-SHA1 -sign #{key}", "w+") { |cmd|
+  raw = src.gsub(/(S[KH]:) *([\w\/+=]*)/, '\1')
+  cmd.write raw
+  cmd.close_write
+  h = cmd.read
+  [h].pack("m*").delete("\n")
+}
+
+src.sub!(/SK\: *[\w\/+=]*$/, "SK\: #{pubkey}")
+src.sub!(/SH\: *[\w\/+=]*$/, "SH\: #{hash}")
+
+print src

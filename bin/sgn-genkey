@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+CURVE = "secp192k1"
+
+require 'digest/sha1'
+
+key = ARGV[0] || File.expand_path("~/.sgn.pem")
+pubkey = key.dup.gsub!(/pem$/, "pub") || (key + ".pub")
+STDOUT.sync = true
+
+if File.exist?(key)
+  abort "Key #{key} exists, remove and re-run sgn-genkey to create a key."
+end
+
+STDERR.puts "Generating key..."
+system "openssl", "ecparam", "-name", CURVE, "-genkey", "-out", key
+
+system "openssl", "ec", "-pubout", "-conv_form", "compressed", "-in", key, "-out", pubkey
+STDERR.puts "Wrote public key #{pubkey}."
+
+print "Do you want to encrypt the private key [recommended] (y/n)? "
+
+if STDIN.gets =~ /^(y|yes)$/i
+  system "openssl", "ec", "-des-ede3-cbc", "-in", key, "-out", key
+end
+
+File.chmod(0400, key)
+STDERR.puts "Wrote private key #{key}."
+
+fp = Digest::SHA1.hexdigest(File.read(pubkey)[/\A-----BEGIN PUBLIC KEY-----(.*)-----END PUBLIC KEY-----\Z/m, 1].delete("\n"))
+STDERR.puts "Created key with fingerprint #{fp}."

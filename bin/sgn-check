@@ -1,0 +1,51 @@
+#!/usr/bin/env ruby
+require 'digest/sha1'
+
+ARGV << "-"  if ARGV.empty?
+ARGV.each { |file|
+  src = if file == "-"
+          STDIN.read
+        else
+          File.read(file)
+        end
+  
+  hash = nil;   src.sub!(/SH\: *([\w\/+=]*)/) { hash =   $1; "SH\:" }
+  pubkey = nil; src.sub!(/SK\: *([\w\/+=]*)/) { pubkey = $1; "SK\:" }
+
+  unless hash && src
+    warn "file not signed: #{file}"
+    next
+  end
+  
+  fp = Digest::SHA1.hexdigest(pubkey)
+  
+  key_out,     key_in    = IO.pipe
+  sign_out,    sign_in   = IO.pipe
+  data_out,    data_in   = IO.pipe
+  result_out,  result_in = IO.pipe
+  
+  fork {
+    key_in.close; sign_in.close; data_in.close; result_out.close
+    exec "openssl dgst -ecdsa-with-SHA1 -verify /dev/fd/#{key_out.to_i} \
+            -signature /dev/fd/#{sign_out.to_i} </dev/fd/#{data_out.to_i} \
+             2>/dev/null >/dev/fd/#{result_in.to_i}"
+  }
+  
+  key_out.close; sign_out.close; data_out.close; result_in.close
+  
+  key_in.write "-----BEGIN PUBLIC KEY-----\n#{pubkey}\n-----END PUBLIC KEY-----\n"
+  key_in.close
+  sign_in.write hash.unpack("m*")
+  sign_in.close
+  data_in.write src
+  data_in.close
+  
+  case result_out.read
+  when /Verified OK/
+    puts "#{fp} #{file} OK"
+  when /Verification Failure/
+    puts "#{fp} #{file} FAILED"
+  else
+    puts "#{fp} #{file} FAILED (TAMPERED)"
+  end
+}
