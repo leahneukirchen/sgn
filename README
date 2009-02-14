@@ -71,7 +71,7 @@ ECDSA.)  Due to the compact size of key and hash, both easily fit into
 an 80 character line and don't clutter the things you want to sign.
 
 NOTA BENE: You must not lose or leak your private key.  There is no
-revocation mechanism.  Encrypt it if you intent to sign critical
+revocation mechanism.  Encrypt it if you intend to sign critical
 information!
 
 == Miscellaneous
